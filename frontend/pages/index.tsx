@@ -8,15 +8,22 @@ import AdvancedCreatePoll from '../components/AdvancedCreatePoll';
 import VotingDashboard from '../components/VotingDashboard';
 import QuadraticVoting from '../components/QuadraticVoting';
 import PollAnalytics from '../components/PollAnalytics';
+import VetoSystem from '../components/VetoSystem';
+import ProposalAmendments from '../components/ProposalAmendments';
+import ScoreVoting from '../components/ScoreVoting';
+import RankedChoiceVoting from '../components/RankedChoiceVoting';
+import StakingVoting from '../components/StakingVoting';
+import PredictionMarkets from '../components/PredictionMarkets';
+import Futarchy from '../components/Futarchy';
 
 export default function Home() {
   const { authData, userSession } = useConnect();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'polls' | 'create' | 'analytics'>('polls');
-  const [selectedPollId, setSelectedPollId] = useState<number>(0);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'polls' | 'create' | 'analytics' | 'governance' | 'voting' | 'markets'>('polls');
+  const [selectedPollId, setSelectedPollId] = useState<number>(1);
   
   // This should be set to your deployed contract address
-  const contractAddress = 'ST32GSWZ2A1QB5XX0J0KBM21QGBB72ZEYQMBXR8QW.tokenvote';
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || 'contract-not-deployed';
 
   const handlePollCreated = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -27,11 +34,17 @@ export default function Home() {
     { id: 'dashboard' as const, name: 'Dashboard', icon: '📊' },
     { id: 'polls' as const, name: 'Polls', icon: '🗳️' },
     { id: 'create' as const, name: 'Create', icon: '➕' },
+    { id: 'voting' as const, name: 'Advanced Voting', icon: '⚡' },
+    { id: 'governance' as const, name: 'Governance', icon: '🏛️' },
+    { id: 'markets' as const, name: 'Markets', icon: '💰' },
     { id: 'analytics' as const, name: 'Analytics', icon: '📈' },
   ];
 
-  const userAddress = authData?.userSession?.loadUserData()?.profile?.stxAddress?.testnet;
+  const userAddress = authData?.userSession?.loadUserData()?.profile?.stxAddress?.testnet || 'SP1K1A1PMGW2ZJCNF46NWZWHG8TS1D23FGH8VRG7H';
   const isSignedIn = !!userSession?.isUserSignedIn();
+
+  // Mock user reputation for demonstration
+  const userReputation = 23;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,108 +74,180 @@ export default function Home() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {!isSignedIn ? (
-            <>
-              {/* Hero Section */}
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold text-gray-900 mb-4">
-                  Decentralized Voting for Token Holders
-                </h2>
-                <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-                  Create polls, vote on proposals, and participate in governance using your Stacks tokens.
-                  Experience advanced features like quadratic voting, delegation, and reputation systems.
-                </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 max-w-md mx-auto">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">Connect Your Wallet</h3>
-                  <p className="text-blue-700 mb-4">Connect your Stacks wallet to start voting and creating polls</p>
-                  <WalletConnect />
-                </div>
-              </div>
-
-              {/* Features */}
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                <div className="text-center p-6 bg-white rounded-lg shadow-sm">
-                  <div className="text-3xl mb-3">🔒</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Secure Voting</h3>
-                  <p className="text-gray-600">Votes are recorded on-chain and cannot be altered or censored</p>
-                </div>
-                <div className="text-center p-6 bg-white rounded-lg shadow-sm">
-                  <div className="text-3xl mb-3">�</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Quadratic Voting</h3>
-                  <p className="text-gray-600">Advanced voting mechanism where vote power = √(tokens spent)</p>
-                </div>
-                <div className="text-center p-6 bg-white rounded-lg shadow-sm">
-                  <div className="text-3xl mb-3">🎯</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Delegation</h3>
-                  <p className="text-gray-600">Delegate your voting power to trusted community members</p>
-                </div>
-                <div className="text-center p-6 bg-white rounded-lg shadow-sm">
-                  <div className="text-3xl mb-3">📊</div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Analytics</h3>
-                  <p className="text-gray-600">Detailed analytics and reputation tracking for voters</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Navigation Tabs */}
-              <div className="border-b border-gray-200 mb-8">
-                <nav className="-mb-px flex space-x-8">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2 ${
-                        activeTab === tab.id
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
+          {/* Always show features, with optional wallet connection */}
+          
+          {/* Demo Notice */}
+          {!isSignedIn && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <div className="text-blue-600 mr-3">🎮</div>
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-900">Demo Mode Active</h3>
+                  <p className="text-blue-700">
+                    You're viewing the platform in demo mode with mock data. 
+                    <button 
+                      onClick={() => setActiveTab('voting')}
+                      className="underline hover:text-blue-800 ml-1"
                     >
-                      <span>{tab.icon}</span>
-                      {tab.name}
+                      Try the advanced features
                     </button>
-                  ))}
-                </nav>
+                    or connect your wallet for real blockchain interaction.
+                  </p>
+                </div>
               </div>
+            </div>
+          )}
 
-              {/* Tab Content */}
-              <div className="min-h-[500px]">
-                {activeTab === 'dashboard' && (
-                  <div className="space-y-8">
-                    <VotingDashboard userAddress={userAddress} contractAddress={contractAddress} />
-                  </div>
-                )}
+          {/* Navigation Tabs */}
+          <div className="border-b border-gray-200 mb-8">
+            <nav className="-mb-px flex space-x-8">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap flex items-center gap-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  {tab.name}
+                </button>
+              ))}
+            </nav>
+          </div>
 
-                {activeTab === 'polls' && (
+          {/* Tab Content */}
+          <div className="min-h-[500px]">
+            {activeTab === 'dashboard' && (
+              <div className="space-y-8">
+                <VotingDashboard userAddress={userAddress} contractAddress={contractAddress} />
+              </div>
+            )}
+
+            {activeTab === 'polls' && (
+              <div className="space-y-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">All Polls</h2>
+                  <button
+                    onClick={() => setRefreshTrigger(prev => prev + 1)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <PollList refreshTrigger={refreshTrigger} />
+                
+                {/* Quadratic Voting Demo Section */}
+                <div className="mt-12 border-t pt-8">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">Quadratic Voting Demo</h3>
+                  <QuadraticVoting 
+                    pollId={selectedPollId} 
+                    options={['Option A', 'Option B', 'Option C']} 
+                    contractAddress={contractAddress} 
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'create' && (
+              <div className="space-y-8">
+                <div className="bg-white rounded-lg shadow-sm p-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Poll</h2>
+                  <AdvancedCreatePoll onPollCreated={handlePollCreated} contractAddress={contractAddress} />
+                </div>
+              </div>
+            )}
+
+                {activeTab === 'voting' && (
                   <div className="space-y-8">
-                    <div className="flex items-center justify-between mb-6">
-                      <h2 className="text-2xl font-bold text-gray-900">All Polls</h2>
-                      <button
-                        onClick={() => setRefreshTrigger(prev => prev + 1)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                    <PollList refreshTrigger={refreshTrigger} />
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Advanced Voting Systems</h2>
                     
-                    {/* Quadratic Voting Demo Section */}
-                    <div className="mt-12 border-t pt-8">
-                      <h3 className="text-xl font-bold text-gray-900 mb-4">Quadratic Voting Demo</h3>
-                      <QuadraticVoting 
-                        pollId={selectedPollId} 
-                        options={['Option A', 'Option B', 'Option C']} 
+                    <div className="grid lg:grid-cols-2 gap-8">
+                      <div className="bg-white rounded-lg shadow-sm p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Score Voting</h3>
+                        <ScoreVoting 
+                          pollId={selectedPollId} 
+                          options={['Option A', 'Option B', 'Option C']}
+                          contractAddress={contractAddress} 
+                          isActive={true}
+                        />
+                      </div>
+                      
+                      <div className="bg-white rounded-lg shadow-sm p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Ranked Choice Voting</h3>
+                        <RankedChoiceVoting 
+                          pollId={selectedPollId} 
+                          options={['Option A', 'Option B', 'Option C']}
+                          contractAddress={contractAddress} 
+                          isActive={true}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg shadow-sm p-6">
+                      <h3 className="text-xl font-semibold text-gray-900 mb-4">Staking for Voting</h3>
+                      <StakingVoting 
+                        pollId={selectedPollId}
+                        options={['Option A', 'Option B', 'Option C']}
                         contractAddress={contractAddress} 
+                        isActive={true}
                       />
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'create' && (
+                {activeTab === 'governance' && (
                   <div className="space-y-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Governance Systems</h2>
+                    
+                    <div className="grid lg:grid-cols-2 gap-8">
+                      <div className="bg-white rounded-lg shadow-sm p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Veto System</h3>
+                        <VetoSystem 
+                          contractAddress={contractAddress} 
+                          userAddress={userAddress} 
+                          userReputation={userReputation} 
+                        />
+                      </div>
+                      
+                      <div className="bg-white rounded-lg shadow-sm p-6">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Proposal Amendments</h3>
+                        <ProposalAmendments 
+                          pollId={selectedPollId}
+                          pollCreator={userAddress}
+                          userAddress={userAddress}
+                          contractAddress={contractAddress} 
+                          isVotingStarted={false}
+                        />
+                      </div>
+                    </div>
+                    
                     <div className="bg-white rounded-lg shadow-sm p-6">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Poll</h2>
-                      <AdvancedCreatePoll onPollCreated={handlePollCreated} contractAddress={contractAddress} />
+                      <h3 className="text-xl font-semibold text-gray-900 mb-4">Futarchy</h3>
+                      <Futarchy 
+                        pollId={selectedPollId}
+                        contractAddress={contractAddress} 
+                        isActive={true}
+                        isCreator={false}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'markets' && (
+                  <div className="space-y-8">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Prediction Markets</h2>
+                    
+                    <div className="bg-white rounded-lg shadow-sm p-6">
+                      <PredictionMarkets 
+                        pollId={selectedPollId}
+                        options={['Option A', 'Option B', 'Option C']}
+                        contractAddress={contractAddress} 
+                        isActive={true}
+                        isCreator={false}
+                      />
                     </div>
                   </div>
                 )}
@@ -173,8 +258,6 @@ export default function Home() {
                   </div>
                 )}
               </div>
-            </>
-          )}
         </main>
 
         {/* Footer */}
@@ -210,8 +293,9 @@ export default function Home() {
                   GitHub
                 </a>
               </div>
-            </div>        </div>
-      </footer>
-    </div>
-  );
-}
+            </div>
+          </div>
+        </footer>
+      </div>
+    );
+  }

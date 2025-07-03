@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { createPoll } from '../lib/contracts';
 import { userSession } from '../lib/auth';
+import { useNotification } from './NotificationProvider';
 
 interface CreatePollProps {
   onPollCreated: () => void;
 }
 
 export default function CreatePoll({ onPollCreated }: CreatePollProps) {
+  const { showNotification } = useNotification();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [question, setQuestion] = useState('');
@@ -63,6 +65,12 @@ export default function CreatePoll({ onPollCreated }: CreatePollProps) {
       const txid = await createPoll(question, validOptions, startBlock, endBlock);
       console.log('Poll created:', txid);
       
+      showNotification({
+        type: 'success',
+        title: 'Poll Created!',
+        message: `Your poll "${question}" has been created successfully.`
+      });
+      
       // Reset form
       setQuestion('');
       setOptions(['', '']);
@@ -71,6 +79,11 @@ export default function CreatePoll({ onPollCreated }: CreatePollProps) {
       onPollCreated();
     } catch (err: any) {
       setError(err.message || 'Failed to create poll');
+      showNotification({
+        type: 'error',
+        title: 'Failed to Create Poll',
+        message: err.message || 'An error occurred while creating the poll.'
+      });
     } finally {
       setIsLoading(false);
     }

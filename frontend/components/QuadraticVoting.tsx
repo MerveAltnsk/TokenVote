@@ -11,6 +11,7 @@ import {
   stringAsciiCV,
   listCV
 } from '@stacks/transactions';
+import { useNotification } from './NotificationProvider';
 
 interface QuadraticVotingProps {
   pollId: number;
@@ -24,6 +25,7 @@ const QuadraticVoting: React.FC<QuadraticVotingProps> = ({
   contractAddress 
 }) => {
   const { doContractCall } = useConnect();
+  const { showNotification } = useNotification();
   const [selectedOption, setSelectedOption] = useState<number>(0);
   const [tokensToSpend, setTokensToSpend] = useState<number>(1);
   const [isVoting, setIsVoting] = useState(false);
@@ -36,28 +38,49 @@ const QuadraticVoting: React.FC<QuadraticVotingProps> = ({
 
     setIsVoting(true);
     try {
-      await doContractCall({
-        network: new StacksTestnet(),
-        contractAddress: contractAddress.split('.')[0],
-        contractName: contractAddress.split('.')[1],
-        functionName: 'quadratic-vote',
-        functionArgs: [
-          uintCV(pollId),
-          uintCV(selectedOption),
-          uintCV(tokensToSpend)
-        ],
-        anchorMode: AnchorMode.Any,
-        postConditionMode: PostConditionMode.Allow,
-        onFinish: (data) => {
-          console.log('Quadratic vote successful:', data);
-          setIsVoting(false);
-        },
-        onCancel: () => {
-          setIsVoting(false);
-        }
-      });
+      if (contractAddress === 'contract-not-deployed') {
+        // Mock voting for demonstration
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        showNotification({
+          type: 'success',
+          title: 'Vote Successful!',
+          message: `Quadratic vote cast for "${options[selectedOption]}" with ${tokensToSpend} tokens (${votePower} power)`
+        });
+      } else {
+        await doContractCall({
+          network: new StacksTestnet(),
+          contractAddress: contractAddress.split('.')[0],
+          contractName: contractAddress.split('.')[1],
+          functionName: 'quadratic-vote',
+          functionArgs: [
+            uintCV(pollId),
+            uintCV(selectedOption),
+            uintCV(tokensToSpend)
+          ],
+          anchorMode: AnchorMode.Any,
+          postConditionMode: PostConditionMode.Allow,
+          onFinish: (data) => {
+            console.log('Quadratic vote successful:', data);
+            showNotification({
+              type: 'success',
+              title: 'Vote Successful!',
+              message: `Quadratic vote cast for "${options[selectedOption]}" with ${tokensToSpend} tokens (${votePower} power)`
+            });
+            setIsVoting(false);
+          },
+          onCancel: () => {
+            setIsVoting(false);
+          }
+        });
+      }
     } catch (error) {
       console.error('Quadratic voting failed:', error);
+      showNotification({
+        type: 'error',
+        title: 'Vote Failed',
+        message: 'Failed to cast quadratic vote. Please try again.'
+      });
+    } finally {
       setIsVoting(false);
     }
   };

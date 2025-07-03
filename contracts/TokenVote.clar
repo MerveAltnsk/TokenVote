@@ -495,19 +495,587 @@
   )
 )
 
-;; Read-only functions for frontend
-(define-read-only (get-poll-metadata (poll-id uint))
-  (map-get? poll-metadata poll-id)
+;; ============================================================================
+;; ADVANCED GOVERNANCE FEATURES
+;; ============================================================================
+
+;; Veto Power System
+(define-map veto-powers
+  principal ;; user with veto power
+  { granted-by: principal, expires-at: uint, active: bool }
 )
 
-(define-read-only (get-user-delegation (user principal))
-  (map-get? vote-delegations user)
+(define-map vetoed-proposals
+  uint ;; poll-id
+  { vetoed-by: principal, reason: (string-ascii 256), vetoed-at: uint }
 )
 
-(define-read-only (get-delegation-power (delegate principal))
-  (default-to u0 (map-get? delegation-power delegate))
+(define-public (grant-veto-power (user principal) (duration uint))
+  (let (
+    (sender tx-sender)
+    (expires-at (+ block-height duration))
+  )
+    ;; Only highly reputable users can grant veto power
+    (asserts! (>= (get reputation-points (get-user-reputation sender)) u100) ERR-NOT-AUTHORIZED)
+    
+    (map-set veto-powers user {
+      granted-by: sender,
+      expires-at: expires-at,
+      active: true
+    })
+    
+    (ok true)
+  )
 )
 
-(define-read-only (get-quadratic-vote (poll-id uint) (voter principal))
-  (map-get? quadratic-votes { poll-id: poll-id, voter: voter })
+(define-public (veto-proposal (poll-id uint) (reason (string-ascii 256)))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+    (veto-power (unwrap! (map-get? veto-powers sender) ERR-NOT-AUTHORIZED))
+  )
+    ;; Check veto power is active and not expired
+    (asserts! (get active veto-power) ERR-NOT-AUTHORIZED)
+    (asserts! (> (get expires-at veto-power) block-height) ERR-NOT-AUTHORIZED)
+    
+    ;; Check poll is still active
+    (asserts! (get is-active poll-info) ERR-VOTING-ENDED)
+    
+    ;; Record veto
+    (map-set vetoed-proposals poll-id {
+      vetoed-by: sender,
+      reason: reason,
+      vetoed-at: block-height
+    })
+    
+    ;; Deactivate the poll
+    (map-set polls poll-id (merge poll-info { is-active: false }))
+    
+    (ok true)
+  )
+)
+
+;; Proposal Amendments
+(define-map proposal-amendments
+  uint ;; poll-id
+  {
+    amendments: (list 10 (string-ascii 512)),
+    amendment-count: uint,
+    last-amended: uint
+  }
+)
+
+(define-public (amend-proposal (poll-id uint) (amendment (string-ascii 512)))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+    (current-amendments (default-to 
+      { amendments: (list), amendment-count: u0, last-amended: u0 }
+      (map-get? proposal-amendments poll-id)
+    ))
+  )
+    ;; Only creator can amend before voting starts
+    (asserts! (is-eq sender (get creator poll-info)) ERR-NOT-AUTHORIZED)
+    (asserts! (< block-height (get start-block poll-info)) ERR-VOTING-NOT-STARTED)
+    
+    ;; Add amendment
+    (let (
+      (new-amendments (unwrap! (as-max-len? 
+        (append (get amendments current-amendments) amendment) u10) ERR-NOT-AUTHORIZED))
+    )
+      (map-set proposal-amendments poll-id {
+        amendments: new-amendments,
+        amendment-count: (+ (get amendment-count current-amendments) u1),
+        last-amended: block-height
+      })
+      
+      (ok true)
+    )
+  )
+)
+
+;; Range/Score Voting System
+(define-map score-votes
+  { poll-id: uint, voter: principal }
+  { scores: (list 10 uint), total-score: uint }
+)
+
+(define-map score-tallies
+  { poll-id: uint, option-index: uint }
+  { total-score: uint, vote-count: uint }
+)
+
+(define-public (score-vote (poll-id uint) (scores (list 10 uint)))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+    (total-score (fold + scores u0))
+  )
+    ;; Validate poll and timing
+    (asserts! (get is-active poll-info) ERR-NOT-AUTHORIZED)
+    (asserts! (>= block-height (get start-block poll-info)) ERR-VOTING-NOT-STARTED)
+    (asserts! (<= block-height (get end-block poll-info)) ERR-VOTING-ENDED)
+    
+    ;; Check if already voted
+    (asserts! (is-none (map-get? score-votes { poll-id: poll-id, voter: sender })) ERR-ALREADY-VOTED)
+    
+    ;; Validate scores (0-100 range)
+    (asserts! (validate-score-range scores) ERR-INVALID-OPTION)
+    
+    ;; Record score vote
+    (map-set score-votes { poll-id: poll-id, voter: sender } {
+      scores: scores,
+      total-score: total-score
+    })
+    
+    ;; Update tallies
+    (update-score-tallies poll-id scores)
+    
+    (ok true)
+  )
+)
+
+(define-private (validate-score-range (scores (list 10 uint)))
+  (fold validate-single-score scores true)
+)
+
+(define-private (validate-single-score (score uint) (acc bool))
+  (and acc (<= score u100))
+)
+
+(define-private (update-score-tallies (poll-id uint) (scores (list 10 uint)))
+  (let (
+    (indices (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9))
+  )
+    (map update-single-tally 
+      (zip indices scores)
+      (make-list u10 poll-id)
+    )
+  )
+)
+
+(define-private (update-single-tally (index-score { index: uint, score: uint }) (poll-id uint))
+  (let (
+    (option-index (get index index-score))
+    (score (get score index-score))
+    (current-tally (default-to { total-score: u0, vote-count: u0 }
+      (map-get? score-tallies { poll-id: poll-id, option-index: option-index })))
+  )
+    (map-set score-tallies { poll-id: poll-id, option-index: option-index } {
+      total-score: (+ (get total-score current-tally) score),
+      vote-count: (+ (get vote-count current-tally) u1)
+    })
+  )
+)
+
+(define-private (zip (list-a (list 10 uint)) (list-b (list 10 uint)))
+  (map make-pair list-a list-b)
+)
+
+(define-private (make-pair (a uint) (b uint))
+  { index: a, score: b }
+)
+
+(define-private (make-list (n uint) (item uint))
+  (list item item item item item item item item item item)
+)
+
+;; Ranked Choice Voting System
+(define-map ranked-votes
+  { poll-id: uint, voter: principal }
+  { rankings: (list 10 uint), valid: bool }
+)
+
+(define-map ranked-tallies
+  { poll-id: uint, round: uint }
+  { 
+    option-counts: (list 10 uint),
+    eliminated: (list 10 bool),
+    total-votes: uint
+  }
+)
+
+(define-public (ranked-vote (poll-id uint) (rankings (list 10 uint)))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+  )
+    ;; Validate poll and timing
+    (asserts! (get is-active poll-info) ERR-NOT-AUTHORIZED)
+    (asserts! (>= block-height (get start-block poll-info)) ERR-VOTING-NOT-STARTED)
+    (asserts! (<= block-height (get end-block poll-info)) ERR-VOTING-ENDED)
+    
+    ;; Check if already voted
+    (asserts! (is-none (map-get? ranked-votes { poll-id: poll-id, voter: sender })) ERR-ALREADY-VOTED)
+    
+    ;; Validate rankings
+    (asserts! (validate-rankings rankings (len (get options poll-info))) ERR-INVALID-OPTION)
+    
+    ;; Record ranked vote
+    (map-set ranked-votes { poll-id: poll-id, voter: sender } {
+      rankings: rankings,
+      valid: true
+    })
+    
+    (ok true)
+  )
+)
+
+(define-private (validate-rankings (rankings (list 10 uint)) (option-count uint))
+  ;; Check that rankings are valid (1 to option-count, no duplicates)
+  (and 
+    (>= (len rankings) option-count)
+    (validate-ranking-range rankings option-count)
+  )
+)
+
+(define-private (validate-ranking-range (rankings (list 10 uint)) (option-count uint))
+  (fold validate-single-ranking rankings true)
+)
+
+(define-private (validate-single-ranking (ranking uint) (acc bool))
+  (and acc (or (is-eq ranking u0) (<= ranking u10)))
+)
+
+;; Staking for Voting System
+(define-map voting-stakes
+  { poll-id: uint, voter: principal }
+  { 
+    stake-amount: uint,
+    predicted-outcome: uint,
+    withdrawn: bool,
+    reward-claimed: bool
+  }
+)
+
+(define-map stake-pools
+  uint ;; poll-id
+  { 
+    total-staked: uint,
+    outcome-stakes: (list 10 uint),
+    reward-pool: uint
+  }
+)
+
+(define-public (stake-and-vote (poll-id uint) (stake-amount uint) (predicted-outcome uint))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+    (current-pool (default-to 
+      { total-staked: u0, outcome-stakes: (list u0 u0 u0 u0 u0 u0 u0 u0 u0 u0), reward-pool: u0 }
+      (map-get? stake-pools poll-id)
+    ))
+  )
+    ;; Validate poll and timing
+    (asserts! (get is-active poll-info) ERR-NOT-AUTHORIZED)
+    (asserts! (>= block-height (get start-block poll-info)) ERR-VOTING-NOT-STARTED)
+    (asserts! (<= block-height (get end-block poll-info)) ERR-VOTING-ENDED)
+    
+    ;; Validate stake amount and outcome
+    (asserts! (> stake-amount u0) ERR-NOT-AUTHORIZED)
+    (asserts! (< predicted-outcome (len (get options poll-info))) ERR-INVALID-OPTION)
+    
+    ;; Check if already staked
+    (asserts! (is-none (map-get? voting-stakes { poll-id: poll-id, voter: sender })) ERR-ALREADY-VOTED)
+    
+    ;; Transfer stake to contract
+    (try! (stx-transfer? stake-amount sender (as-contract tx-sender)))
+    
+    ;; Record stake
+    (map-set voting-stakes { poll-id: poll-id, voter: sender } {
+      stake-amount: stake-amount,
+      predicted-outcome: predicted-outcome,
+      withdrawn: false,
+      reward-claimed: false
+    })
+    
+    ;; Update stake pool
+    (map-set stake-pools poll-id {
+      total-staked: (+ (get total-staked current-pool) stake-amount),
+      outcome-stakes: (update-outcome-stakes (get outcome-stakes current-pool) predicted-outcome stake-amount),
+      reward-pool: (+ (get reward-pool current-pool) (/ stake-amount u10))
+    })
+    
+    (ok true)
+  )
+)
+
+(define-private (update-outcome-stakes (stakes (list 10 uint)) (outcome uint) (amount uint))
+  (map update-stake-at-index stakes (enumerate-list u10) outcome amount)
+)
+
+(define-private (update-stake-at-index (current-stake uint) (index uint) (target-outcome uint) (amount uint))
+  (if (is-eq index target-outcome)
+    (+ current-stake amount)
+    current-stake
+  )
+)
+
+(define-private (enumerate-list (n uint))
+  (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9)
+)
+
+;; Prediction Markets System
+(define-map prediction-markets
+  uint ;; poll-id
+  {
+    market-active: bool,
+    outcome-odds: (list 10 uint),
+    total-bets: uint,
+    outcome-pools: (list 10 uint)
+  }
+)
+
+(define-map prediction-bets
+  { poll-id: uint, bettor: principal }
+  {
+    outcome: uint,
+    bet-amount: uint,
+    odds-at-bet: uint,
+    settled: bool
+  }
+)
+
+(define-public (create-prediction-market (poll-id uint) (initial-odds (list 10 uint)))
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+  )
+    ;; Only poll creator can create prediction market
+    (asserts! (is-eq sender (get creator poll-info)) ERR-NOT-AUTHORIZED)
+    
+    ;; Validate odds sum to 100
+    (asserts! (is-eq (fold + initial-odds u0) u100) ERR-INVALID-OPTION)
+    
+    (map-set prediction-markets poll-id {
+      market-active: true,
+      outcome-odds: initial-odds,
+      total-bets: u0,
+      outcome-pools: (list u0 u0 u0 u0 u0 u0 u0 u0 u0 u0)
+    })
+    
+    (ok true)
+  )
+)
+
+(define-public (place-prediction-bet (poll-id uint) (outcome uint) (bet-amount uint))
+  (let (
+    (sender tx-sender)
+    (market (unwrap! (map-get? prediction-markets poll-id) ERR-POLL-NOT-FOUND))
+    (current-odds (unwrap! (element-at (get outcome-odds market) outcome) ERR-INVALID-OPTION))
+  )
+    ;; Validate market is active
+    (asserts! (get market-active market) ERR-NOT-AUTHORIZED)
+    (asserts! (> bet-amount u0) ERR-NOT-AUTHORIZED)
+    
+    ;; Check if already bet
+    (asserts! (is-none (map-get? prediction-bets { poll-id: poll-id, bettor: sender })) ERR-ALREADY-VOTED)
+    
+    ;; Transfer bet to contract
+    (try! (stx-transfer? bet-amount sender (as-contract tx-sender)))
+    
+    ;; Record bet
+    (map-set prediction-bets { poll-id: poll-id, bettor: sender } {
+      outcome: outcome,
+      bet-amount: bet-amount,
+      odds-at-bet: current-odds,
+      settled: false
+    })
+    
+    ;; Update market
+    (map-set prediction-markets poll-id {
+      market-active: (get market-active market),
+      outcome-odds: (get outcome-odds market),
+      total-bets: (+ (get total-bets market) bet-amount),
+      outcome-pools: (update-outcome-pools (get outcome-pools market) outcome bet-amount)
+    })
+    
+    (ok true)
+  )
+)
+
+(define-private (update-outcome-pools (pools (list 10 uint)) (outcome uint) (amount uint))
+  (map update-pool-at-index pools (enumerate-list u10) outcome amount)
+)
+
+(define-private (update-pool-at-index (current-pool uint) (index uint) (target-outcome uint) (amount uint))
+  (if (is-eq index target-outcome)
+    (+ current-pool amount)
+    current-pool
+  )
+)
+
+;; Futarchy Implementation
+(define-map futarchy-proposals
+  uint ;; poll-id
+  {
+    value-question: (string-ascii 256),
+    belief-question: (string-ascii 256),
+    value-votes: (list 10 uint),
+    belief-bets: (list 10 uint),
+    implementation-threshold: uint,
+    active: bool
+  }
+)
+
+(define-map futarchy-participants
+  { poll-id: uint, participant: principal }
+  {
+    value-vote: uint,
+    belief-bet: uint,
+    belief-outcome: uint,
+    settled: bool
+  }
+)
+
+(define-public (create-futarchy-proposal 
+  (poll-id uint) 
+  (value-question (string-ascii 256))
+  (belief-question (string-ascii 256))
+  (implementation-threshold uint)
+)
+  (let (
+    (sender tx-sender)
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+  )
+    ;; Only poll creator can create futarchy proposal
+    (asserts! (is-eq sender (get creator poll-info)) ERR-NOT-AUTHORIZED)
+    
+    (map-set futarchy-proposals poll-id {
+      value-question: value-question,
+      belief-question: belief-question,
+      value-votes: (list u0 u0 u0 u0 u0 u0 u0 u0 u0 u0),
+      belief-bets: (list u0 u0 u0 u0 u0 u0 u0 u0 u0 u0),
+      implementation-threshold: implementation-threshold,
+      active: true
+    })
+    
+    (ok true)
+  )
+)
+
+(define-public (futarchy-participate (poll-id uint) (value-vote uint) (belief-bet uint) (belief-outcome uint))
+  (let (
+    (sender tx-sender)
+    (proposal (unwrap! (map-get? futarchy-proposals poll-id) ERR-POLL-NOT-FOUND))
+    (poll-info (unwrap! (map-get? polls poll-id) ERR-POLL-NOT-FOUND))
+  )
+    ;; Validate proposal is active and timing
+    (asserts! (get active proposal) ERR-NOT-AUTHORIZED)
+    (asserts! (>= block-height (get start-block poll-info)) ERR-VOTING-NOT-STARTED)
+    (asserts! (<= block-height (get end-block poll-info)) ERR-VOTING-ENDED)
+    
+    ;; Validate inputs
+    (asserts! (> belief-bet u0) ERR-NOT-AUTHORIZED)
+    (asserts! (< value-vote u10) ERR-INVALID-OPTION)
+    (asserts! (< belief-outcome u10) ERR-INVALID-OPTION)
+    
+    ;; Check if already participated
+    (asserts! (is-none (map-get? futarchy-participants { poll-id: poll-id, participant: sender })) ERR-ALREADY-VOTED)
+    
+    ;; Transfer bet to contract
+    (try! (stx-transfer? belief-bet sender (as-contract tx-sender)))
+    
+    ;; Record participation
+    (map-set futarchy-participants { poll-id: poll-id, participant: sender } {
+      value-vote: value-vote,
+      belief-bet: belief-bet,
+      belief-outcome: belief-outcome,
+      settled: false
+    })
+    
+    ;; Update proposal tallies
+    (map-set futarchy-proposals poll-id {
+      value-question: (get value-question proposal),
+      belief-question: (get belief-question proposal),
+      value-votes: (update-list-at-index (get value-votes proposal) value-vote u1),
+      belief-bets: (update-list-at-index (get belief-bets proposal) belief-outcome belief-bet),
+      implementation-threshold: (get implementation-threshold proposal),
+      active: (get active proposal)
+    })
+    
+    (ok true)
+  )
+)
+
+(define-private (update-list-at-index (lst (list 10 uint)) (index uint) (value uint))
+  (map update-element-at-index lst (enumerate-list u10) index value)
+)
+
+(define-private (update-element-at-index (element uint) (current-index uint) (target-index uint) (value uint))
+  (if (is-eq current-index target-index)
+    (+ element value)
+    element
+  )
+)
+
+;; Read-only functions for new features
+(define-read-only (get-proposal-amendments (poll-id uint))
+  (map-get? proposal-amendments poll-id)
+)
+
+(define-read-only (get-veto-status (poll-id uint))
+  (map-get? vetoed-proposals poll-id)
+)
+
+(define-read-only (get-score-results (poll-id uint))
+  (let (
+    (indices (list u0 u1 u2 u3 u4 u5 u6 u7 u8 u9))
+  )
+    (map get-score-tally indices (make-list u10 poll-id))
+  )
+)
+
+(define-private (get-score-tally (index uint) (poll-id uint))
+  (default-to { total-score: u0, vote-count: u0 }
+    (map-get? score-tallies { poll-id: poll-id, option-index: index }))
+)
+
+(define-read-only (get-staking-info (poll-id uint))
+  (map-get? stake-pools poll-id)
+)
+
+(define-read-only (get-prediction-market (poll-id uint))
+  (map-get? prediction-markets poll-id)
+)
+
+(define-read-only (get-futarchy-proposal (poll-id uint))
+  (map-get? futarchy-proposals poll-id)
+)
+
+(define-read-only (get-user-stake (poll-id uint) (user principal))
+  (map-get? voting-stakes { poll-id: poll-id, voter: user })
+)
+
+(define-read-only (get-user-prediction-bet (poll-id uint) (user principal))
+  (map-get? prediction-bets { poll-id: poll-id, bettor: user })
+)
+
+(define-read-only (get-user-futarchy-participation (poll-id uint) (user principal))
+  (map-get? futarchy-participants { poll-id: poll-id, participant: user })
+)
+
+;; Helper function to get element at index
+(define-private (element-at (lst (list 10 uint)) (index uint))
+  (if (is-eq index u0) (some (unwrap! (get 0 lst) none))
+    (if (is-eq index u1) (some (unwrap! (get 1 lst) none))
+      (if (is-eq index u2) (some (unwrap! (get 2 lst) none))
+        (if (is-eq index u3) (some (unwrap! (get 3 lst) none))
+          (if (is-eq index u4) (some (unwrap! (get 4 lst) none))
+            (if (is-eq index u5) (some (unwrap! (get 5 lst) none))
+              (if (is-eq index u6) (some (unwrap! (get 6 lst) none))
+                (if (is-eq index u7) (some (unwrap! (get 7 lst) none))
+                  (if (is-eq index u8) (some (unwrap! (get 8 lst) none))
+                    (if (is-eq index u9) (some (unwrap! (get 9 lst) none))
+                      none
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  )
 )

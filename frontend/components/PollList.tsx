@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Poll, PollResults, getPoll, getPollResults, getUserVote, votePoll, isPollActive } from '../lib/contracts';
+import { Poll, PollResults, getAllPolls, getPollResults, getUserVote, votePoll, isPollActive } from '../lib/contracts';
 import { userSession } from '../lib/auth';
 import { Clock, Users, CheckCircle } from 'lucide-react';
+import { useNotification } from './NotificationProvider';
 
 interface PollListProps {
   refreshTrigger: number;
 }
 
 export default function PollList({ refreshTrigger }: PollListProps) {
+  const { showNotification } = useNotification();
   const [polls, setPolls] = useState<Poll[]>([]);
   const [pollResults, setPollResults] = useState<{ [key: number]: PollResults }>({});
   const [userVotes, setUserVotes] = useState<{ [key: number]: number }>({});
@@ -21,24 +23,19 @@ export default function PollList({ refreshTrigger }: PollListProps) {
   useEffect(() => {
     loadPolls();
   }, [refreshTrigger]);
-
   const loadPolls = async () => {
     setLoading(true);
     try {
-      // In a real implementation, you'd want to fetch the poll count first
-      // and then fetch all polls. For now, we'll try to fetch the first 10 polls
-      const pollPromises = Array.from({ length: 10 }, (_, i) => getPoll(i));
-      const pollsData = await Promise.all(pollPromises);
-      const validPolls = pollsData.filter((poll): poll is Poll => poll !== null);
-      
+      // Use the new getAllPolls function
+      const validPolls = await getAllPolls();
       setPolls(validPolls);
 
       // Load results for all polls
-      const resultsPromises = validPolls.map(poll => getPollResults(poll.id));
+      const resultsPromises = validPolls.map((poll: Poll) => getPollResults(poll.id));
       const resultsData = await Promise.all(resultsPromises);
       const resultsMap: { [key: number]: PollResults } = {};
       
-      resultsData.forEach((result, index) => {
+      resultsData.forEach((result: PollResults | null, index: number) => {
         if (result) {
           resultsMap[validPolls[index].id] = result;
         }
@@ -48,13 +45,13 @@ export default function PollList({ refreshTrigger }: PollListProps) {
 
       // Load user votes if signed in
       if (currentUserAddress) {
-        const votePromises = validPolls.map(poll => 
+        const votePromises = validPolls.map((poll: Poll) =>
           getUserVote(poll.id, currentUserAddress)
         );
         const votesData = await Promise.all(votePromises);
         const votesMap: { [key: number]: number } = {};
         
-        votesData.forEach((vote, index) => {
+        votesData.forEach((vote: number | null, index: number) => {
           if (vote !== null) {
             votesMap[validPolls[index].id] = vote;
           }
