@@ -57,19 +57,121 @@ TokenVote is a comprehensive decentralized voting system built on the Stacks blo
 - **📈 Real-Time Results**: Live vote counting with instant result updates
 - **🏆 Weighted Voting**: Vote weight based on token holdings
 
-### 🔐 Governance Features
+### ⚡ Advanced Voting Systems
 
+- **🎯 Score Voting**: Rate each option on a scale of 1-10 with weighted averages
+- **🏆 Ranked Choice Voting**: Drag-and-drop ranking with instant runoff calculations
+- **� Staking for Voting**: Stake tokens to increase voting power with pool management
+- **📊 Quadratic Voting**: Advanced mechanism where vote power = √(tokens spent)
+
+### 🏛️ Governance Features
+
+- **🛡️ Veto Power System**: Grant/revoke veto power to trusted community members
+- **📝 Proposal Amendments**: Submit amendments to existing proposals with history tracking
+- **🔮 Futarchy Implementation**: "Vote on values, bet on beliefs" - dual-track governance
 - **🪙 Token-Based Access**: Only token holders can create polls and vote
 - **👑 Creator Controls**: Poll creators can close their polls early
-- **📋 Poll Management**: Complete lifecycle management of voting proposals
+
+### � Prediction Markets
+
+- **📊 Market Creation**: Create prediction markets for poll outcomes
+- **🎲 Betting System**: Place bets on different outcomes with automatic payouts
+- **📈 Odds Calculation**: Real-time odds based on market activity
+- **💸 Payout Distribution**: Automatic distribution of winnings to successful bettors
+
+### 🔐 Security & Transparency
+
 - **🔍 Vote Verification**: Public verification of all votes and results
+- **🔒 Cryptographic Security**: All votes are cryptographically secured and stored on-chain
+- **🌐 Decentralized**: No central authority can manipulate or censor votes
+- **👥 Community Driven**: Token holders control the governance process
 
 ### 💻 User Experience
 
+- **🎮 Demo Mode**: Full functionality with mock data - no wallet required for testing
 - **🔗 Wallet Integration**: Seamless connection with Hiro Wallet and Xverse
 - **📱 Responsive Design**: Works perfectly on desktop and mobile devices
 - **🎨 Modern UI**: Clean, intuitive interface built with Tailwind CSS
 - **⚡ Fast Loading**: Optimized performance with Next.js
+- **🔔 Real-time Notifications**: Instant feedback for all user actions
+
+### 🎯 Advanced Features Navigation
+
+TokenVote now includes 7 different governance and voting systems organized into intuitive tabs:
+
+#### 📊 **Dashboard Tab**
+
+- **User Statistics**: Votes cast, polls created, reputation points
+- **Achievement System**: Track your governance participation
+- **Delegation Power**: See your influence in the community
+
+#### 🗳️ **Polls Tab**
+
+- **Standard Voting**: Traditional poll creation and voting
+- **Quadratic Voting**: Advanced voting where power = √(tokens spent)
+- **Poll Management**: View all active and completed polls
+
+#### ➕ **Create Tab**
+
+- **Advanced Poll Creator**: Create polls with multiple voting systems
+- **Flexible Options**: Set duration, voting method, and restrictions
+- **Rich Configuration**: Customize poll behavior and access
+
+#### ⚡ **Advanced Voting Tab**
+
+- **🎯 Score Voting**: Rate each option on a scale of 1-10
+  - Interactive sliders for each option
+  - Weighted average calculations
+  - Prevent duplicate scoring
+- **🏆 Ranked Choice Voting**: Drag-and-drop ranking system
+  - Instant runoff calculations
+  - Visual ranking interface
+  - Elimination rounds display
+- **💎 Staking for Voting**: Stake tokens to increase voting power
+  - Manage stake pools per poll
+  - Track total staked amounts
+  - Weighted voting calculations
+
+#### 🏛️ **Governance Tab**
+
+- **🛡️ Veto Power System**: Democratic checks and balances
+  - Grant/revoke veto power to trusted members
+  - Reputation-based veto requirements
+  - Veto status tracking for all polls
+- **📝 Proposal Amendments**: Collaborative governance
+  - Submit amendments to existing proposals
+  - Track amendment history and status
+  - Community-driven proposal evolution
+- **🔮 Futarchy Implementation**: "Vote on values, bet on beliefs"
+  - Dual-track governance system
+  - Value voting (rate proposal benefit 1-10)
+  - Belief betting (bet on implementation success)
+  - Automatic implementation thresholds
+
+#### 💰 **Markets Tab**
+
+- **📊 Prediction Markets**: Economic incentives for governance
+  - Create prediction markets for poll outcomes
+  - Place bets on different results
+  - Automatic payout distribution
+  - Real-time odds calculation
+  - Market statistics and analytics
+
+#### 📈 **Analytics Tab**
+
+- **Detailed Voting Analytics**: Deep insights into governance patterns
+- **Poll Performance**: Track engagement and participation
+- **Community Metrics**: Understand voting behavior
+
+### 🎮 Demo Mode Features
+
+All advanced features work perfectly in demo mode:
+
+- **No wallet connection required** for testing
+- **Mock data** provides realistic examples
+- **Full interactivity** - all buttons and features work
+- **Real-time feedback** and notifications
+- **Seamless transition** to real blockchain when ready
 
 ## 🛠️ Technology Stack
 
@@ -207,6 +309,15 @@ Before you begin, ensure you have the following installed:
 
 ### ⚡ Quick Start
 
+#### 🚀 Super Quick Start (Windows)
+
+1. **Double-click `START_SERVER.bat`** in the main project folder
+2. **Wait for the server to start** (may take a minute)
+3. **Browser opens automatically** at http://localhost:3000
+4. **All features are immediately available!** No wallet connection required for testing
+
+#### 🛠️ Manual Start
+
 1. **Check smart contracts**
 
    ```bash
@@ -216,13 +327,22 @@ Before you begin, ensure you have the following installed:
 2. **Start the frontend development server**
 
    ```bash
-   npm run dev:frontend
+   cd frontend
+   npm install
+   npm run dev
    ```
 
 3. **Open your browser and navigate to**
    ```
    http://localhost:3000
    ```
+
+#### 🎮 Demo Mode
+
+- **All features work without wallet connection**
+- **Mock data for immediate testing**
+- **Full interactive experience**
+- **Connect wallet for real blockchain interaction**
 
 ## 📖 Usage
 
@@ -262,9 +382,9 @@ Before you begin, ensure you have the following installed:
 
 ### TokenVote.clar
 
-The main voting contract that handles all poll creation, voting, and result tracking.
+The main voting contract that handles all poll creation, voting, and advanced governance features.
 
-#### 📋 Public Functions
+#### 📋 Core Public Functions
 
 | Function      | Parameters                                        | Description                                  |
 | ------------- | ------------------------------------------------- | -------------------------------------------- |
@@ -272,27 +392,73 @@ The main voting contract that handles all poll creation, voting, and result trac
 | `vote`        | `poll-id`, `option-index`                         | Casts a vote for a specific option           |
 | `close-poll`  | `poll-id`                                         | Closes a poll early (creator only)           |
 
+#### ⚡ Advanced Voting Functions
+
+| Function         | Parameters                          | Description                       |
+| ---------------- | ----------------------------------- | --------------------------------- |
+| `quadratic-vote` | `poll-id`, `option-index`, `tokens` | Quadratic voting with token spend |
+| `score-vote`     | `poll-id`, `scores`                 | Score voting (1-10 scale)         |
+| `ranked-vote`    | `poll-id`, `rankings`               | Ranked choice voting              |
+| `stake-and-vote` | `poll-id`, `option-index`, `stake`  | Stake tokens for voting power     |
+
+#### 🏛️ Governance Functions
+
+| Function            | Parameters                                     | Description                |
+| ------------------- | ---------------------------------------------- | -------------------------- |
+| `grant-veto-power`  | `user`, `reputation-required`                  | Grant veto power to user   |
+| `revoke-veto-power` | `user`                                         | Revoke veto power          |
+| `veto-poll`         | `poll-id`                                      | Veto a poll                |
+| `submit-amendment`  | `poll-id`, `amendment-text`                    | Submit proposal amendment  |
+| `setup-futarchy`    | `poll-id`, `value-question`, `belief-question` | Set up futarchy governance |
+| `value-vote`        | `poll-id`, `value-score`                       | Vote on proposal value     |
+| `belief-bet`        | `poll-id`, `outcome`, `bet-amount`             | Bet on belief outcome      |
+
+#### 💰 Prediction Market Functions
+
+| Function                   | Parameters                            | Description                 |
+| -------------------------- | ------------------------------------- | --------------------------- |
+| `create-prediction-market` | `poll-id`, `options`, `end-time`      | Create prediction market    |
+| `place-bet`                | `market-id`, `option-index`, `amount` | Place bet on outcome        |
+| `resolve-market`           | `market-id`, `winning-option`         | Resolve market (admin only) |
+| `distribute-payouts`       | `market-id`                           | Distribute winnings         |
+
 #### 📖 Read-Only Functions
 
-| Function           | Parameters         | Returns       | Description                          |
-| ------------------ | ------------------ | ------------- | ------------------------------------ |
-| `get-poll`         | `poll-id`          | Poll data     | Retrieves complete poll information  |
-| `get-poll-results` | `poll-id`          | Results tuple | Gets vote counts and percentages     |
-| `get-user-vote`    | `poll-id`, `voter` | Option index  | Checks user's vote for a poll        |
-| `is-poll-active`   | `poll-id`          | Boolean       | Verifies if poll is currently active |
-| `get-poll-count`   | -                  | Number        | Returns total number of polls        |
+| Function                | Parameters         | Returns          | Description                      |
+| ----------------------- | ------------------ | ---------------- | -------------------------------- |
+| `get-poll`              | `poll-id`          | Poll data        | Retrieves complete poll info     |
+| `get-poll-results`      | `poll-id`          | Results tuple    | Gets vote counts and percentages |
+| `get-user-vote`         | `poll-id`, `voter` | Option index     | Checks user's vote for a poll    |
+| `get-user-reputation`   | `user`             | Reputation data  | Gets user's reputation info      |
+| `get-veto-power`        | `user`             | Veto status      | Checks if user has veto power    |
+| `get-amendment-history` | `poll-id`          | Amendment list   | Gets all amendments for poll     |
+| `get-score-results`     | `poll-id`          | Score data       | Gets score voting results        |
+| `get-ranked-results`    | `poll-id`          | Ranking data     | Gets ranked choice results       |
+| `get-stake-pool`        | `poll-id`          | Stake info       | Gets staking pool information    |
+| `get-futarchy-data`     | `poll-id`          | Futarchy details | Gets futarchy voting data        |
+| `get-market-info`       | `market-id`        | Market data      | Gets prediction market info      |
+| `is-poll-active`        | `poll-id`          | Boolean          | Verifies if poll is active       |
+| `get-poll-count`        | -                  | Number           | Returns total number of polls    |
 
 #### ⚠️ Error Codes
 
-| Code   | Constant                 | Description                  |
-| ------ | ------------------------ | ---------------------------- |
-| `u401` | `ERR-NOT-AUTHORIZED`     | Not a token holder           |
-| `u402` | `ERR-INVALID-TIME`       | Invalid time parameters      |
-| `u403` | `ERR-VOTING-NOT-STARTED` | Voting period hasn't started |
-| `u404` | `ERR-VOTING-ENDED`       | Voting period has ended      |
-| `u405` | `ERR-INVALID-OPTION`     | Invalid option index         |
-| `u406` | `ERR-ALREADY-VOTED`      | User has already voted       |
-| `u407` | `ERR-POLL-NOT-FOUND`     | Poll doesn't exist           |
+| Code   | Constant                   | Description                  |
+| ------ | -------------------------- | ---------------------------- |
+| `u401` | `ERR-NOT-AUTHORIZED`       | Not a token holder           |
+| `u402` | `ERR-INVALID-TIME`         | Invalid time parameters      |
+| `u403` | `ERR-VOTING-NOT-STARTED`   | Voting period hasn't started |
+| `u404` | `ERR-VOTING-ENDED`         | Voting period has ended      |
+| `u405` | `ERR-INVALID-OPTION`       | Invalid option index         |
+| `u406` | `ERR-ALREADY-VOTED`        | User has already voted       |
+| `u407` | `ERR-POLL-NOT-FOUND`       | Poll doesn't exist           |
+| `u408` | `ERR-INSUFFICIENT-BALANCE` | Not enough tokens            |
+| `u409` | `ERR-INVALID-VETO-POWER`   | Invalid veto power operation |
+| `u410` | `ERR-POLL-VETOED`          | Poll has been vetoed         |
+| `u411` | `ERR-INVALID-AMENDMENT`    | Invalid amendment            |
+| `u412` | `ERR-FUTARCHY-NOT-SETUP`   | Futarchy not configured      |
+| `u413` | `ERR-MARKET-NOT-FOUND`     | Prediction market not found  |
+| `u414` | `ERR-MARKET-RESOLVED`      | Market already resolved      |
+| `u415` | `ERR-INVALID-BET`          | Invalid bet parameters       |
 
 ### GovernanceToken.clar
 
@@ -897,6 +1063,33 @@ npm run build
 - Join the [Stacks Discord](https://discord.gg/stacks)
 - Review [Clarity Language Reference](https://docs.stacks.co/clarity)
 
+## 🎉 Recent Updates
+
+### v2.0.0 - Advanced Governance Features
+
+**🆕 New Features Added:**
+
+- **⚡ Advanced Voting Systems**: Score voting, ranked choice, and staking-based voting
+- **🏛️ Governance Tools**: Veto power system, proposal amendments, and futarchy implementation
+- **💰 Prediction Markets**: Create and participate in prediction markets for governance outcomes
+- **🎮 Demo Mode**: Full functionality without wallet connection for testing and education
+- **📊 Enhanced Analytics**: Comprehensive voting analytics and user reputation tracking
+
+**🔧 Technical Improvements:**
+
+- Completely rewritten smart contract with 25+ new functions
+- 7 new React components with TypeScript support
+- Improved UI/UX with intuitive tab navigation
+- Real-time notifications and feedback system
+- Mock data support for immediate testing
+
+**🚀 Getting Started:**
+
+1. Double-click `START_SERVER.bat` for instant setup
+2. Navigate through tabs to explore features
+3. All features work in demo mode immediately
+4. Connect wallet for real blockchain interaction
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
@@ -909,4 +1102,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ---
 
-**Note**: This is a demonstration project. For production use, implement additional security measures, comprehensive testing, and professional audit of smart contracts.
+**Note**: This is a demonstration project showcasing advanced blockchain governance features. For production use, additional security measures, extensive testing, and professional auditing of smart contracts must be implemented.
+
+**🎯 TokenVote now offers one of the most comprehensive governance platforms on Stacks blockchain!**
